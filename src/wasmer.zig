@@ -33,21 +33,21 @@ pub fn detectWasmerLibDir(allocator: std.mem.Allocator) !?[]const u8 {
     var child = std.process.Child.init(&argv, allocator);
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Pipe;
-    var stdout = std.ArrayList(u8).init(allocator);
-    var stderr = std.ArrayList(u8).init(allocator);
+    var stdout = std.ArrayListUnmanaged(u8) {};
+    var stderr = std.ArrayListUnmanaged(u8) {};
     defer {
-        stdout.deinit();
-        stderr.deinit();
+        stdout.deinit(allocator);
+        stderr.deinit(allocator);
     }
 
     try child.spawn();
-    try child.collectOutput(&stdout, &stderr, OS_PATH_MAX);
+    try child.collectOutput(allocator, &stdout, &stderr, OS_PATH_MAX);
 
     const term = try child.wait();
 
     if (stderr.items.len != 0 or term.Exited != 0) return null;
 
-    const stdout_res = try stdout.toOwnedSlice();
+    const stdout_res = try stdout.toOwnedSlice(allocator);
     defer allocator.free(stdout_res);
 
     return try allocator.dupe(u8, std.mem.trimRight(u8, stdout_res, "\r\n"));
