@@ -33,8 +33,8 @@ pub fn detectWasmerLibDir(allocator: std.mem.Allocator) !?[]const u8 {
     var child = std.process.Child.init(&argv, allocator);
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Pipe;
-    var stdout = std.ArrayListUnmanaged(u8) {};
-    var stderr = std.ArrayListUnmanaged(u8) {};
+    var stdout = std.ArrayListUnmanaged(u8){};
+    var stderr = std.ArrayListUnmanaged(u8){};
     defer {
         stdout.deinit(allocator);
         stderr.deinit(allocator);
@@ -87,8 +87,6 @@ test "detect wasmer lib directory" {
     const result = try detectWasmerLibDir(std.testing.allocator) orelse "";
     defer std.testing.allocator.free(result);
 
-    std.debug.print("Wasmer lib path: {s}\n", .{result});
-
     try std.testing.expectStringEndsWith(result, ".wasmer/lib");
 }
 
@@ -104,7 +102,8 @@ test "transform WAT to WASM" {
     ;
 
     var wasm_bytes = try watToWasm(wat);
-    defer wasm_bytes.deinit();
 
-    std.debug.print("Wasm2Wadt {any}", .{wasm_bytes});
+    try std.testing.expectEqual(91, wasm_bytes.size);
+
+    defer wasm_bytes.deinit();
 }

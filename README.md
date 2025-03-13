@@ -41,7 +41,7 @@ zig build run -Dexamples=true
 In your zig project folder (where build.zig is located), run:
 
 ```bash
-zig fetch --save "git+https://github.com/Afirium/wasmer-zig-api#v0.2.0"
+zig fetch --save "git+https://github.com/Afirium/wasmer-zig-api#v0.3.0"
 ```
 
 Then, in your `build.zig`'s `build` function, add the following before
@@ -57,3 +57,9 @@ Then, in your `build.zig`'s `build` function, add the following before
     exe.addLibraryPath(.{ .cwd_relative = "/home/path_to_your_wasmer/.wasmer/lib" });
     exe.linkSystemLibrary("wasmer");
 ```
+
+## Status
+
+| Refname   | Wasmer runtime version | Zig `0.12.x` | Zig `0.13.x` | Zig `0.14.x` | Zig `0.15.0-dev` |
+|:----------|:-----------------------|:------------:|:------------:|:------------:|:----------------:|
+| `v0.3.0`  | `v4.0.0+`, `v5.0.0+`   | ❌           | ❌           | ✅           | ✅              |

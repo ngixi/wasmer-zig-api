@@ -59,7 +59,7 @@ pub fn run() !void {
 
     std.log.info("loading binary...", .{});
 
-    const file_content = @embedFile("./assets/qjs.wasm");
+    const file_content = @embedFile("assets/qjs.wasm");
 
     var binary = wasmer.ByteVec.fromSlice(file_content);
     defer binary.deinit();
