@@ -1,18 +1,36 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const types = @import("./types.zig");
 pub const wasm = @import("./wasm.zig");
 pub const wasi = @import("./wasi.zig");
 
-// Re-exports
+// Re-exports from types
+pub const Error = types.Error;
+pub const Config = types.Config;
+pub const Engine = types.Engine;
+pub const Store = types.Store;
+pub const Module = types.Module;
+pub const Instance = types.Instance;
+pub const Func = types.Func;
+pub const Memory = types.Memory;
+pub const Table = types.Table;
+pub const Global = types.Global;
+pub const Trap = types.Trap;
+pub const Extern = types.Extern;
+pub const ExternType = types.ExternType;
+pub const Features = types.Features;
+pub const CpuFeatures = types.CpuFeatures;
+pub const Metering = types.Metering;
+pub const Target = types.Target;
+pub const Triple = types.Triple;
+pub const WasiConfig = types.WasiConfig;
+pub const WasiEnv = types.WasiEnv;
+pub const WasiFilesystem = types.WasiFilesystem;
+pub const NamedExtern = types.NamedExtern;
+
+// Re-exports from wasm.zig (keeping for compatibility)
 pub const ExternVec = wasm.ExternVec;
 pub const ByteVec = wasm.ByteVec;
-pub const Engine = wasm.Engine;
-pub const Store = wasm.Store;
-pub const Module = wasm.Module;
-pub const Instance = wasm.Instance;
-pub const Extern = wasm.Extern;
-pub const Func = wasm.Func;
-pub const Memory = wasm.Memory;
 pub const MemoryType = wasm.MemoryType;
 pub const Limits = wasm.Limits;
 

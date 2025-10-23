@@ -34,8 +34,7 @@ pub const WasiConfig = opaque {
     /// The `wasi_env_new` function takes the ownership of the wasm_config_t
     /// https://github.com/wasmerio/wasmer/issues/2468
     pub fn deinit(self: *WasiConfig) void {
-        _ = self;
-        @compileError("not implemented in wasmer");
+        wasi_config_delete(self);
     }
 
     /// Inherit native environment settings
@@ -148,12 +147,18 @@ pub const WasiEnv = opaque {
         }
     }
 
+    /// Set the memory for the WASI environment
+    pub fn setMemory(self: *WasiEnv, memory: *wasm.Memory) void {
+        wasi_env_set_memory(self, memory);
+    }
+
     // External C function declarations
     extern "c" fn wasi_env_new(?*wasm.Store, ?*WasiConfig) ?*WasiEnv;
     extern "c" fn wasi_env_delete(?*WasiEnv) void;
     extern "c" fn wasi_env_read_stdout(?*WasiEnv, [*]u8, usize) isize;
     extern "c" fn wasi_env_read_stderr(?*WasiEnv, [*]u8, usize) isize;
     extern "c" fn wasi_env_initialize_instance(?*WasiEnv, ?*wasm.Store, ?*wasm.Instance) bool;
+    extern "c" fn wasi_env_set_memory(?*WasiEnv, ?*wasm.Memory) void;
 };
 
 /// Enum representing different WASI versions
