@@ -79,12 +79,162 @@ pub const Error = error{
 // =============================================================================
 
 // Core WASM types
-pub const Config = opaque {};
-pub const Engine = opaque {};
-pub const Store = opaque {};
+pub const Config = opaque {
+    /// Create a new default configuration
+    pub fn init() !*Config {
+        return wasm_config_new() orelse return Error.ConfigInit;
+    }
+
+    /// Clean up configuration resources
+    pub fn deinit(self: *Config) void {
+        wasm_config_delete(self);
+    }
+
+    /// Set the compilation backend engine
+    pub fn setEngine(self: *Config, engine: Backend) void {
+        wasm_config_set_engine(self, engine);
+    }
+
+    /// Set the WASM features to enable/disable
+    pub fn setFeatures(self: *Config, features: *Features) void {
+        wasm_config_set_features(self, features);
+    }
+
+    /// Set the compilation target
+    pub fn setTarget(self: *Config, target: *Target) void {
+        wasm_config_set_target(self, target);
+    }
+
+    /// Add middleware to the compilation pipeline
+    pub fn pushMiddleware(self: *Config, middleware: *Middleware) void {
+        wasm_config_push_middleware(self, middleware);
+    }
+
+    /// Configure NaN canonicalization for floating point operations
+    pub fn setCanonicalizeNans(self: *Config, enable: bool) void {
+        wasm_config_sys_canonicalize_nans(self, enable);
+    }
+
+    /// Builder pattern for easy configuration
+    pub const Builder = struct {
+        config: *Config,
+
+        pub fn init() !Builder {
+            return Builder{
+                .config = try Config.init(),
+            };
+        }
+
+        pub fn deinit(self: Builder) void {
+            self.config.deinit();
+        }
+
+        pub fn engine(self: Builder, backend: Backend) Builder {
+            self.config.setEngine(backend);
+            return self;
+        }
+
+        pub fn features(self: Builder, features_val: *Features) Builder {
+            self.config.setFeatures(features_val);
+            return self;
+        }
+
+        pub fn target(self: Builder, target_val: *Target) Builder {
+            self.config.setTarget(target_val);
+            return self;
+        }
+
+        pub fn middleware(self: Builder, middleware_val: *Middleware) Builder {
+            self.config.pushMiddleware(middleware_val);
+            return self;
+        }
+
+        pub fn canonicalizeNans(self: Builder, enable: bool) Builder {
+            self.config.setCanonicalizeNans(enable);
+            return self;
+        }
+
+        pub fn build(self: Builder) *Config {
+            return self.config;
+        }
+    };
+};
+pub const Engine = opaque {
+    /// Create a new default engine
+    pub fn init() !*Engine {
+        return wasm_engine_new() orelse return Error.EngineInit;
+    }
+
+    /// Create a new engine with the given configuration
+    pub fn initWithConfig(config: *Config) !*Engine {
+        return wasm_engine_new_with_config(config) orelse return Error.EngineInit;
+    }
+
+    /// Clean up engine resources
+    pub fn deinit(self: *Engine) void {
+        wasm_engine_delete(self);
+    }
+};
+pub const Store = opaque {
+    /// Create a new store with the given engine
+    pub fn init(engine: *Engine) !*Store {
+        return wasm_store_new(engine) orelse return Error.StoreInit;
+    }
+
+    /// Clean up store resources
+    pub fn deinit(self: *Store) void {
+        wasm_store_delete(self);
+    }
+};
 pub const Module = opaque {};
 pub const Instance = opaque {};
-pub const Func = opaque {};
+pub const Func = opaque {
+    /// Create a new function from a callback
+    pub fn init(store: *Store, callback: anytype) !*Func {
+        const func = wasm_func_new(store, callback, &Callback{}) orelse return Error.FuncInit;
+        return func;
+    }
+
+    /// Call the function with given parameters and results
+    pub fn call(self: *Func, comptime ResultType: type, params: anytype) !ResultType {
+        // Validate parameter count
+        const param_count = wasm_func_param_arity(self);
+        const expected_params = @typeInfo(@TypeOf(params)).Struct.fields.len;
+        if (param_count != expected_params) return CallError.InvalidParamCount;
+
+        // Validate result count
+        const result_count = wasm_func_result_arity(self);
+        const expected_results = if (ResultType == void) 0 else 1; // Simplified for now
+        if (result_count != expected_results) return CallError.InvalidResultCount;
+
+        // Prepare parameter vector
+        var param_vec: ValVec = undefined;
+        if (param_count > 0) {
+            // TODO: Implement parameter conversion
+        }
+
+        // Prepare result vector
+        var result_vec: ValVec = undefined;
+        if (result_count > 0) {
+            wasm_val_vec_new_uninitialized(&result_vec, result_count);
+        }
+
+        // Call the function
+        const trap = wasm_func_call(self, if (param_count > 0) &param_vec else null, if (result_count > 0) &result_vec else null);
+        if (trap) |_| return CallError.Trap;
+
+        // Convert result back to ResultType - simplified
+        if (ResultType == void) return;
+
+        // TODO: Implement result conversion
+        @panic("Result conversion not implemented");
+    }
+
+    /// Clean up function resources
+    pub fn deinit(self: *Func) void {
+        wasm_func_delete(self);
+    }
+};
 pub const Memory = opaque {};
 pub const Table = opaque {};
 pub const Global = opaque {};
@@ -441,12 +591,28 @@ pub const FrameVec = extern struct {
 };
 pub const ImportType = opaque {};
 pub const ExportType = opaque {};
-pub const Callback = fn (?*const Valtype, ?*Valtype) callconv(.C) ?*Trap;
-pub const CallbackWithEnv = fn (?*anyopaque, ?*const Valtype, ?*Valtype) callconv(.C) ?*Trap;
-pub const MeteringCostFunction = fn (u32) callconv(.C) u64;
+pub const Callback = fn (?*const Valtype, ?*Valtype) callconv(.c) ?*Trap;
+pub const CallbackWithEnv = fn (?*anyopaque, ?*const Valtype, ?*Valtype) callconv(.c) ?*Trap;
+pub const MeteringCostFunction = fn (u32) callconv(.c) u64;
 pub const Mutability = enum(u8) {
     constant = 0,
     variable = 1,
+};
+
+pub const CallError = error{
+    /// Failed to call the function
+    InnerError,
+    /// and resulted into an error
+    InvalidResultType,
+    /// When the user provided a different ResultType to Func.call
+    /// than what is defined by the wasm binary
+    InvalidParamCount,
+    /// The given argument count to Func.call mismatches that
+    /// of the func argument count of the wasm binary
+    InvalidResultCount,
+    /// The wasm function number of results mismatch that of the given
+    /// ResultType to Func.Call. Note that void equals to 0 result types.
+    Trap,
 };
 
 // =============================================================================
@@ -474,7 +640,7 @@ pub fn getLastError(allocator: Allocator) ![]u8 {
 pub fn byteVecFromSlice(slice: []const u8) ByteVec {
     return .{
         .size = slice.len,
-        .data = slice.ptr,
+        .data = @constCast(slice.ptr),
     };
 }
 

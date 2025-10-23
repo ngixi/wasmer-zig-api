@@ -1,3 +1,9 @@
+// =============================================================================
+// DO NOT TOUCH THIS FILE - IT WORKS FOR ZIG 0.15.2
+// The real build system is in the workspace root: v:\mannsion\ngixi\build.zig
+// This file is maintained by the user and should not be modified by AI assistants
+// =============================================================================
+
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {

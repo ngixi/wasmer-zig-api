@@ -87,8 +87,8 @@ pub extern "c" fn wasmer_last_error_length() c_int;
 pub extern "c" fn wasmer_last_error_message([*]const u8, c_int) c_int;
 
 pub fn watToWasm(wat: []const u8) !ByteVec {
-    var wat_bytes = ByteVec.fromSlice(wat);
-    defer wat_bytes.deinit();
+    var wat_bytes = types.byteVecFromSlice(wat);
+    defer wasm_byte_vec_delete(&wat_bytes);
 
     var wasm_bytes: ByteVec = undefined;
     wat2wasm(&wat_bytes, &wasm_bytes);
@@ -99,6 +99,7 @@ pub fn watToWasm(wat: []const u8) !ByteVec {
 }
 
 extern "c" fn wat2wasm(*const wasm.ByteVec, *wasm.ByteVec) void;
+extern "c" fn wasm_byte_vec_delete(*wasm.ByteVec) void;
 
 test "detect wasmer lib directory" {
     const result = try detectWasmerLibDir(std.testing.allocator) orelse "";
@@ -122,5 +123,5 @@ test "transform WAT to WASM" {
 
     try std.testing.expectEqual(91, wasm_bytes.size);
 
-    defer wasm_bytes.deinit();
+    defer wasm_byte_vec_delete(&wasm_bytes);
 }

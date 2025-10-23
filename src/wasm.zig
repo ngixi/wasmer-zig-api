@@ -69,27 +69,13 @@ pub const ExportType = opaque {
     extern "c" fn wasm_exporttype_name(*ExportType) ?*ByteVec;
 };
 
-pub const Callback = fn (?*const types.Valtype, ?*const types.Valtype) callconv(.C) ?*Trap;
+pub const Callback = fn (?*const types.Valtype, ?*const types.Valtype) callconv(.c) ?*Trap;
 
-pub const CallError = error{
-    /// Failed to call the function
-    InnerError,
-    /// and resulted into an error
-    InvalidResultType,
-    /// When the user provided a different ResultType to Func.call
-    /// than what is defined by the wasm binary
-    InvalidParamCount,
-    /// The given argument count to Func.call mismatches that
-    /// of the func argument count of the wasm binary
-    InvalidResultCount,
-    /// The wasm function number of results mismatch that of the given
-    /// ResultType to Func.Call. Note that void equals to 0 result types.
-    Trap,
-};
+pub const CallError = types.CallError;
 
 var CALLBACK: usize = 0;
 
-pub fn cb(params: ?*const types.Valtype, results: ?*const types.Valtype) callconv(.C) ?*Trap {
+pub fn cb(params: ?*const types.Valtype, results: ?*const types.Valtype) callconv(.c) ?*Trap {
     _ = params;
     _ = results;
     const func = @as(*const fn () void, @ptrFromInt(CALLBACK));
