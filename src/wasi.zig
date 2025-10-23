@@ -27,31 +27,38 @@ pub const WasiConfig = opaque {
 
     /// Initialize a new WASI configuration
     pub fn init() !*WasiConfig {
-        return wasi_config_new() orelse WasiError.ConfigInit;
+        return wasi_config_new("") orelse WasiError.ConfigInit;
     }
 
     /// Clean up WASI configuration
     /// The `wasi_env_new` function takes the ownership of the wasm_config_t
     /// https://github.com/wasmerio/wasmer/issues/2468
     pub fn deinit(self: *WasiConfig) void {
-        wasi_config_delete(self);
+        // wasi_config_delete(self); // Not available in this Wasmer version
+        _ = self;
     }
 
     /// Inherit native environment settings
     pub fn inherit(self: *WasiConfig, options: InheritOptions) void {
-        if (options.argv) self.inheritArgv();
-        if (options.env) self.inheritEnv();
+        if (options.argv) {
+            // wasi_config_inherit_argv(self); // Not available in this Wasmer version
+        }
+        if (options.env) {
+            // wasi_config_inherit_env(self); // Not available in this Wasmer version
+        }
         if (options.std_in) self.inheritStdIn();
         if (options.std_out) self.inheritStdOut();
         if (options.std_err) self.inheritStdErr();
     }
 
     pub fn inheritArgv(self: *WasiConfig) void {
-        wasi_config_inherit_argv(self);
+        // wasi_config_inherit_argv(self); // Not available in this Wasmer version
+        _ = self;
     }
 
     pub fn inheritEnv(self: *WasiConfig) void {
-        wasi_config_inherit_env(self);
+        // wasi_config_inherit_env(self); // Not available in this Wasmer version
+        _ = self;
     }
 
     pub fn inheritStdIn(self: *WasiConfig) void {
@@ -101,10 +108,10 @@ pub const WasiConfig = opaque {
     }
 
     // External C function declarations
-    extern "c" fn wasi_config_new() ?*WasiConfig;
-    extern "c" fn wasi_config_delete(?*WasiConfig) void;
-    extern "c" fn wasi_config_inherit_argv(?*WasiConfig) void;
-    extern "c" fn wasi_config_inherit_env(?*WasiConfig) void;
+    extern "c" fn wasi_config_new([*]const u8) ?*WasiConfig;
+    // extern "c" fn wasi_config_delete(?*WasiConfig) void; // Not available
+    // extern "c" fn wasi_config_inherit_argv(?*WasiConfig) void; // Not available
+    // extern "c" fn wasi_config_inherit_env(?*WasiConfig) void; // Not available
     extern "c" fn wasi_config_inherit_stdin(?*WasiConfig) void;
     extern "c" fn wasi_config_inherit_stdout(?*WasiConfig) void;
     extern "c" fn wasi_config_inherit_stderr(?*WasiConfig) void;
@@ -178,7 +185,7 @@ pub fn getWasiVersion(module: *wasm.Module) WasiVersion {
 
 /// Get WASI imports for a module
 pub fn getImports(store: *wasm.Store, wasi_env: *WasiEnv, module: *wasm.Module) !wasm.ExternVec {
-    var imports = wasm.ExternVec.empty();
+    var imports = wasm.ExternVec.init();
     if (!wasi_get_imports(store, wasi_env, module, &imports)) {
         return WasiError.GetImportsFailed;
     }
@@ -186,8 +193,8 @@ pub fn getImports(store: *wasm.Store, wasi_env: *WasiEnv, module: *wasm.Module) 
 }
 
 /// Get the start function of a WASI module
-pub fn getStartFunction(instance: *wasm.Instance) !*wasm.Func {
-    return wasi_get_start_function(instance) orelse WasiError.StartFunctionNotFound;
+pub fn getStartFunction(instance: *wasm.Instance) ?*wasm.Func {
+    return wasi_get_start_function(instance);
 }
 
 // External C function declarations

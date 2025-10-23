@@ -24,6 +24,10 @@ pub const Error = error{
     ModuleDeserialize,
     /// Function initialization failed
     FuncInit,
+    /// Function type initialization failed
+    FuncTypeInit,
+    /// Value type initialization failed
+    ValtypeInit,
     /// Instance initialization failed
     InstanceInit,
     /// Memory initialization failed
@@ -249,8 +253,28 @@ pub const Instance = opaque {
         var trap: ?*Trap = null;
         const instance = wasm_instance_new(store, module, imports, &trap) orelse {
             if (trap) |t| {
-                // TODO: Handle trap properly
-                wasm_trap_delete(t);
+                defer wasm_trap_delete(t);
+                // Try to extract trap message
+                var message_vec: ?*ByteVec = null;
+                wasm_trap_message(t, &message_vec);
+                if (message_vec) |msg_vec| {
+                    defer wasm_byte_vec_delete(msg_vec);
+                    const msg_slice = msg_vec.asSliceConst();
+                    std.debug.print("Trap message: {s}\n", .{msg_slice});
+                }
+            }
+            return Error.InstanceInit;
+        };
+        return instance;
+    }
+
+    /// Create an instance with detailed error reporting
+    pub fn initWithDetailedErrors(store: *Store, module: *const Module, imports: ?*const ExternVec) !*Instance {
+        var trap: ?*Trap = null;
+        const instance = wasm_instance_new(store, module, imports, &trap) orelse {
+            if (trap) |t| {
+                defer wasm_trap_delete(t);
+                // TODO: Extract trap message for detailed error
             }
             return Error.InstanceInit;
         };
@@ -260,6 +284,55 @@ pub const Instance = opaque {
     /// Get exports from the instance
     pub fn getExports(self: *Instance, exports: *ExternVec) void {
         wasm_instance_exports(self, exports);
+    }
+
+    /// Get a specific export by name
+    pub fn getExport(self: *Instance, name: []const u8) ?*Extern {
+        // TODO: Implement proper export lookup by name
+        // This requires access to the module's export types to match names
+        // For now, return null
+        _ = self;
+        _ = name; // Suppress unused parameter warning
+        return null;
+    }
+
+    /// Get all exports as a name->extern map
+    pub fn getExportsMap(self: *Instance, allocator: Allocator) !std.StringHashMap(*Extern) {
+        var exports = ExternVec.init();
+        defer exports.deinit();
+
+        self.getExports(&exports);
+
+        var map = std.StringHashMap(*Extern).init(allocator);
+        errdefer {
+            var it = map.iterator();
+            while (it.next()) |entry| {
+                allocator.free(entry.key_ptr.*);
+            }
+            map.deinit();
+        }
+
+        // TODO: Need to get export names from module
+        // This is a placeholder implementation
+        const exports_slice = exports.asSlice();
+        _ = exports_slice; // Suppress unused variable warning
+
+        // Placeholder: return empty map for now
+        return map;
+    }
+
+    /// Check if an export exists
+    pub fn hasExport(self: *Instance, name: []const u8) bool {
+        return self.getExport(name) != null;
+    }
+
+    /// Get all export names
+    pub fn getExportNames(self: *Instance, allocator: Allocator) ![][]u8 {
+        // TODO: Implement proper export name retrieval
+        // This requires access to the module's export types
+        _ = self;
+        _ = allocator; // Suppress unused parameter warning
+        return &[_][]u8{}; // Return empty slice for now
     }
 
     /// Clean up instance resources
@@ -368,14 +441,14 @@ pub const Trap = opaque {
 };
 
 pub const Func = opaque {
-    /// Create a function from a callback
-    pub fn init(store: *Store, callback: Callback) !*Func {
-        return wasm_func_new(store, callback, null) orelse return Error.FuncInit;
+    /// Create a function from a function type and callback
+    pub fn init(store: *Store, func_type: *const anyopaque, callback: Callback) !*Func {
+        return wasm_func_new(store, func_type, callback) orelse return Error.FuncInit;
     }
 
     /// Create a function with environment from a callback
-    pub fn initWithEnv(store: *Store, callback: CallbackWithEnv, env: *anyopaque, finalizer: ?*anyopaque) !*Func {
-        return wasm_func_new_with_env(store, callback, env, finalizer, null) orelse return Error.FuncInit;
+    pub fn initWithEnv(store: *Store, func_type: *const anyopaque, callback: CallbackWithEnv, env: *anyopaque, finalizer: ?*const fn (*anyopaque) callconv(.c) void) !*Func {
+        return wasm_func_new_with_env(store, func_type, callback, env, finalizer) orelse return Error.FuncInit;
     }
 
     /// Call the function with parameters and get results
@@ -439,7 +512,42 @@ pub const Func = opaque {
     }
 };
 
-pub const Extern = opaque {};
+pub const Extern = opaque {
+    /// Convert extern to function if it is one
+    pub fn asFunc(self: *Extern) ?*Func {
+        return wasm_extern_as_func(self);
+    }
+
+    /// Convert extern to memory if it is one
+    pub fn asMemory(self: *Extern) ?*Memory {
+        return wasm_extern_as_memory(self);
+    }
+
+    /// Convert extern to table if it is one
+    pub fn asTable(self: *Extern) ?*Table {
+        return wasm_extern_as_table(self);
+    }
+
+    /// Convert extern to global if it is one
+    pub fn asGlobal(self: *Extern) ?*Global {
+        return wasm_extern_as_global(self);
+    }
+
+    /// Get the kind of extern
+    pub fn getKind(self: *const Extern) ExternKind {
+        return wasm_extern_kind(self);
+    }
+
+    /// Get the type of the extern
+    pub fn getType(self: *const Extern) *ExternType {
+        return wasm_extern_type(self) orelse unreachable;
+    }
+
+    /// Clean up extern resources
+    pub fn deinit(self: *Extern) void {
+        wasm_extern_delete(self);
+    }
+};
 pub const ExternType = opaque {};
 
 // WASI types
@@ -663,11 +771,11 @@ extern "c" fn wasm_store_new(?*Engine) ?*Store;
 extern "c" fn wasm_store_delete(?*Store) void;
 
 // Module
-extern "c" fn wasm_module_new(?*Store, ?*const ByteVec) ?*Module;
-extern "c" fn wasm_module_delete(?*Module) void;
-extern "c" fn wasm_module_validate(?*Store, ?*const ByteVec) bool;
-extern "c" fn wasm_module_exports(?*const Module, ?*ExportTypeVec) void;
-extern "c" fn wasm_module_imports(?*const Module, ?*ImportTypeVec) void;
+pub extern "c" fn wasm_module_new(?*Store, ?*const ByteVec) ?*Module;
+pub extern "c" fn wasm_module_delete(?*Module) void;
+pub extern "c" fn wasm_module_validate(?*Store, ?*const ByteVec) bool;
+pub extern "c" fn wasm_module_exports(?*const Module, ?*ExportTypeVec) void;
+pub extern "c" fn wasm_module_imports(?*const Module, ?*ImportTypeVec) void;
 extern "c" fn wasm_module_share(?*const Module) ?*Module;
 extern "c" fn wasm_module_obtain(?*Store, ?*const Module) ?*Module;
 extern "c" fn wasm_module_serialize(?*const Module, ?*ByteVec) void;
@@ -681,9 +789,9 @@ extern "c" fn wasm_instance_delete(?*Instance) void;
 extern "c" fn wasm_instance_exports(?*Instance, ?*ExternVec) void;
 
 // Func
-extern "c" fn wasm_func_new(?*Store, ?*anyopaque, ?*const Callback) ?*Func;
+extern "c" fn wasm_func_new(?*Store, ?*const anyopaque, Callback) ?*Func;
 extern "c" fn wasm_func_delete(?*Func) void;
-extern "c" fn wasm_func_new_with_env(?*Store, ?*anyopaque, ?*CallbackWithEnv, ?*anyopaque, ?*anyopaque) ?*Func;
+extern "c" fn wasm_func_new_with_env(?*Store, ?*const anyopaque, CallbackWithEnv, ?*anyopaque, ?*const fn (?*anyopaque) callconv(.c) void) ?*Func;
 extern "c" fn wasm_func_as_extern(?*Func) ?*Extern;
 extern "c" fn wasm_func_copy(?*const Func) ?*Func;
 extern "c" fn wasm_func_call(?*Func, ?*const ValVec, ?*ValVec) ?*Trap;
@@ -742,17 +850,17 @@ extern "c" fn wasm_extern_as_table(?*Extern) ?*Table;
 extern "c" fn wasm_extern_as_global(?*Extern) ?*Global;
 
 // Types
-extern "c" fn wasm_functype_new(?*ValtypeVec, ?*ValtypeVec) ?*anyopaque;
-extern "c" fn wasm_functype_delete(?*anyopaque) void;
-extern "c" fn wasm_memorytype_new(?*const Limits) ?*MemoryType;
-extern "c" fn wasm_memorytype_delete(?*MemoryType) void;
-extern "c" fn wasm_tabletype_new(?*Valtype, ?*const Limits) ?*TableType;
-extern "c" fn wasm_tabletype_delete(?*TableType) void;
-extern "c" fn wasm_globaltype_new(?*Valtype, Mutability) ?*GlobalType;
-extern "c" fn wasm_globaltype_delete(?*GlobalType) void;
-extern "c" fn wasm_valtype_new(u8) ?*Valtype;
-extern "c" fn wasm_valtype_delete(?*Valtype) void;
-extern "c" fn wasm_valtype_kind(?*Valtype) u8;
+pub extern "c" fn wasm_functype_new(?*ValtypeVec, ?*ValtypeVec) ?*anyopaque;
+pub extern "c" fn wasm_functype_delete(?*anyopaque) void;
+pub extern "c" fn wasm_memorytype_new(?*const Limits) ?*MemoryType;
+pub extern "c" fn wasm_memorytype_delete(?*MemoryType) void;
+pub extern "c" fn wasm_tabletype_new(?*Valtype, ?*const Limits) ?*TableType;
+pub extern "c" fn wasm_tabletype_delete(?*TableType) void;
+pub extern "c" fn wasm_globaltype_new(?*Valtype, Mutability) ?*GlobalType;
+pub extern "c" fn wasm_globaltype_delete(?*GlobalType) void;
+pub extern "c" fn wasm_valtype_new(u8) ?*Valtype;
+pub extern "c" fn wasm_valtype_delete(?*Valtype) void;
+pub extern "c" fn wasm_valtype_kind(?*Valtype) u8;
 
 // Vector operations
 extern "c" fn wasm_byte_vec_new(?*ByteVec, usize, ?[*]const u8) void;
@@ -870,8 +978,88 @@ extern "c" fn wasmer_version_pre() ?[*]const u8;
 extern "c" fn wat2wasm(?*const ByteVec, ?*ByteVec) void;
 
 // -----------------------------------------------------------------------------
-// Supporting Types (not in main headers but needed)
+// Function Type Helpers (from wasm.h convenience functions)
 // -----------------------------------------------------------------------------
+
+/// Create a function type that takes 0 parameters and returns 0 results
+pub fn createFuncType0To0() !*anyopaque {
+    var params = ValtypeVec{ .size = 0, .data = undefined };
+    var results = ValtypeVec{ .size = 0, .data = undefined };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 1 parameter and returns 0 results
+pub fn createFuncType1To0(param_type: *Valtype) !*anyopaque {
+    var params = ValtypeVec{ .size = 1, .data = @as([*]?*Valtype, @ptrCast(@constCast(&param_type))) };
+    var results = ValtypeVec{ .size = 0, .data = undefined };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 2 parameters and returns 0 results
+pub fn createFuncType2To0(param1_type: *Valtype, param2_type: *Valtype) !*anyopaque {
+    var params_data = [_]?*Valtype{ param1_type, param2_type };
+    var params = ValtypeVec{ .size = 2, .data = @as([*]?*Valtype, @ptrCast(&params_data)) };
+    var results = ValtypeVec{ .size = 0, .data = undefined };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 4 parameters and returns 0 results
+pub fn createFuncType4To0(param1_type: *Valtype, param2_type: *Valtype, param3_type: *Valtype, param4_type: *Valtype) !*anyopaque {
+    var params_data = [_]?*Valtype{ param1_type, param2_type, param3_type, param4_type };
+    var params = ValtypeVec{ .size = 4, .data = @as([*]?*Valtype, @ptrCast(&params_data)) };
+    var results = ValtypeVec{ .size = 0, .data = undefined };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 0 parameters and returns 1 result
+pub fn createFuncType0To1(result_type: *Valtype) !*anyopaque {
+    var params = ValtypeVec{ .size = 0, .data = undefined };
+    var results = ValtypeVec{ .size = 1, .data = @as([*]?*Valtype, @ptrCast(@constCast(&result_type))) };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 1 parameter and returns 1 result
+pub fn createFuncType1To1(param_type: *Valtype, result_type: *Valtype) !*anyopaque {
+    var params = ValtypeVec{ .size = 1, .data = @as([*]?*Valtype, @ptrCast(@constCast(&param_type))) };
+    var results = ValtypeVec{ .size = 1, .data = @as([*]?*Valtype, @ptrCast(@constCast(&result_type))) };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 2 parameters and returns 1 result
+pub fn createFuncType2To1(param1_type: *Valtype, param2_type: *Valtype, result_type: *Valtype) !*anyopaque {
+    var params_data = [_]?*Valtype{ param1_type, param2_type };
+    var params = ValtypeVec{ .size = 2, .data = @as([*]?*Valtype, @ptrCast(&params_data)) };
+    var results = ValtypeVec{ .size = 1, .data = @as([*]?*Valtype, @ptrCast(@constCast(&result_type))) };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create a function type that takes 3 parameters and returns 1 result
+pub fn createFuncType3To1(param1_type: *Valtype, param2_type: *Valtype, param3_type: *Valtype, result_type: *Valtype) !*anyopaque {
+    var params_data = [_]?*Valtype{ param1_type, param2_type, param3_type };
+    var params = ValtypeVec{ .size = 3, .data = @as([*]?*Valtype, @ptrCast(&params_data)) };
+    var results = ValtypeVec{ .size = 1, .data = @as([*]?*Valtype, @ptrCast(@constCast(&result_type))) };
+    return wasm_functype_new(&params, &results) orelse return Error.FuncTypeInit;
+}
+
+/// Create an i32 value type
+pub fn createI32Valtype() !*Valtype {
+    return wasm_valtype_new(@intFromEnum(Valkind.i32)) orelse return Error.ValtypeInit;
+}
+
+/// Create an i64 value type
+pub fn createI64Valtype() !*Valtype {
+    return wasm_valtype_new(@intFromEnum(Valkind.i64)) orelse return Error.ValtypeInit;
+}
+
+/// Create an f32 value type
+pub fn createF32Valtype() !*Valtype {
+    return wasm_valtype_new(@intFromEnum(Valkind.f32)) orelse return Error.ValtypeInit;
+}
+
+/// Create an f64 value type
+pub fn createF64Valtype() !*Valtype {
+    return wasm_valtype_new(@intFromEnum(Valkind.f64)) orelse return Error.ValtypeInit;
+}
 
 pub const MemoryType = opaque {};
 pub const TableType = opaque {};
@@ -892,8 +1080,8 @@ pub const FrameVec = extern struct {
 };
 pub const ImportType = opaque {};
 pub const ExportType = opaque {};
-pub const Callback = fn (?*const Valtype, ?*Valtype) callconv(.c) ?*Trap;
-pub const CallbackWithEnv = fn (?*anyopaque, ?*const Valtype, ?*Valtype) callconv(.c) ?*Trap;
+pub const Callback = *const fn (?*const ValVec, ?*ValVec) callconv(.c) ?*Trap;
+pub const CallbackWithEnv = *const fn (?*anyopaque, ?*const ValVec, ?*ValVec) callconv(.c) ?*Trap;
 pub const MeteringCostFunction = fn (u32) callconv(.c) u64;
 pub const Mutability = enum(u8) {
     constant = 0,
@@ -914,6 +1102,42 @@ pub const CallError = error{
     /// The wasm function number of results mismatch that of the given
     /// ResultType to Func.Call. Note that void equals to 0 result types.
     Trap,
+};
+
+// =============================================================================
+// INSTANCE IMPROVEMENTS (Section 2.3)
+// =============================================================================
+
+/// Detailed information about a required import
+pub const ImportInfo = struct {
+    module_name: []const u8,
+    name: []const u8,
+    extern_type: *ExternType,
+};
+
+/// Detailed error information for instantiation failures
+pub const DetailedError = struct {
+    error_type: InstantiationError,
+    module_name: ?[]const u8,
+    import_name: ?[]const u8,
+    expected_type: ?*ExternType,
+    provided_type: ?*ExternType,
+    suggestion: ?[]const u8,
+};
+
+/// Enhanced instantiation error types
+pub const InstantiationError = error{
+    MissingImport,
+    TypeMismatch,
+    InvalidImport,
+    LinkError,
+};
+
+/// Export information with name and type
+pub const ExportInfo = struct {
+    name: []const u8,
+    extern_type: *ExternType,
+    extern_ptr: *Extern,
 };
 
 // =============================================================================
@@ -962,15 +1186,22 @@ pub fn valueFromZigValue(value: anytype) Value {
     };
 }
 
-/// Convert a Wasmer Value to a Zig value
-pub fn zigValueFromValue(comptime T: type, value: Value) T {
-    return switch (T) {
-        i32 => value.of.i32,
-        i64 => value.of.i64,
-        f32 => value.of.f32,
-        f64 => value.of.f64,
-        else => @compileError("Unsupported result type: " ++ @typeName(T)),
-    };
+/// Validate that all required imports are provided
+pub fn validateImports(module: *const Module, imports: ?*const ExternVec) !void {
+    // TODO: Implement import validation
+    // This should check that all module imports are satisfied by the provided imports
+    // and that the types match
+    _ = module;
+    _ = imports;
+}
+
+/// Get list of required imports for a module
+pub fn getRequiredImports(module: *const Module, allocator: Allocator) ![]ImportInfo {
+    // TODO: Implement required imports retrieval
+    // This should return detailed information about all imports required by the module
+    _ = module;
+    _ = allocator;
+    return &[_]ImportInfo{}; // Return empty slice for now
 }
 
 // =============================================================================

@@ -23,16 +23,42 @@ pub const CpuFeatures = types.CpuFeatures;
 pub const Metering = types.Metering;
 pub const Target = types.Target;
 pub const Triple = types.Triple;
-pub const WasiConfig = types.WasiConfig;
-pub const WasiEnv = types.WasiEnv;
+pub const WasiConfig = wasi.WasiConfig;
+pub const WasiEnv = wasi.WasiEnv;
 pub const WasiFilesystem = types.WasiFilesystem;
 pub const NamedExtern = types.NamedExtern;
+
+// Function type creation helpers
+pub const createFuncType0To0 = types.createFuncType0To0;
+pub const createFuncType1To0 = types.createFuncType1To0;
+pub const createFuncType2To0 = types.createFuncType2To0;
+pub const createFuncType3To0 = types.createFuncType3To0;
+pub const createFuncType4To0 = types.createFuncType4To0;
+pub const createFuncType0To1 = types.createFuncType0To1;
+pub const createFuncType1To1 = types.createFuncType1To1;
+pub const createFuncType2To1 = types.createFuncType2To1;
+pub const createFuncType3To1 = types.createFuncType3To1;
+pub const createI32Valtype = types.createI32Valtype;
+pub const createI64Valtype = types.createI64Valtype;
+pub const createF32Valtype = types.createF32Valtype;
+pub const createF64Valtype = types.createF64Valtype;
+pub const valueFromZigValue = types.valueFromZigValue;
+
+// Type deletion helpers
+pub const wasm_functype_delete = types.wasm_functype_delete;
+pub const wasm_valtype_delete = types.wasm_valtype_delete;
+pub const wasm_module_imports = types.wasm_module_imports;
+pub const getLastError = types.getLastError;
 
 // Re-exports from wasm.zig (keeping for compatibility)
 pub const ExternVec = wasm.ExternVec;
 pub const ByteVec = wasm.ByteVec;
+pub const ValVec = wasm.ValVec;
+pub const Value = wasm.Value;
 pub const MemoryType = wasm.MemoryType;
 pub const Limits = wasm.Limits;
+pub const ValtypeVec = types.ValtypeVec;
+pub const ImportTypeVec = types.ImportTypeVec;
 
 const OS_PATH_MAX: usize = switch (builtin.os.tag) {
     .windows => std.os.windows.MAX_PATH,
@@ -99,7 +125,7 @@ pub fn watToWasm(wat: []const u8) !ByteVec {
 }
 
 extern "c" fn wat2wasm(*const wasm.ByteVec, *wasm.ByteVec) void;
-extern "c" fn wasm_byte_vec_delete(*wasm.ByteVec) void;
+pub extern "c" fn wasm_byte_vec_delete(*wasm.ByteVec) void;
 
 test "detect wasmer lib directory" {
     const result = try detectWasmerLibDir(std.testing.allocator) orelse "";
