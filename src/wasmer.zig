@@ -127,6 +127,11 @@ pub fn watToWasm(wat: []const u8) !ByteVec {
 extern "c" fn wat2wasm(*const wasm.ByteVec, *wasm.ByteVec) void;
 pub extern "c" fn wasm_byte_vec_delete(*wasm.ByteVec) void;
 
+// Features extern functions
+pub extern "c" fn wasmer_features_new() ?*Features;
+pub extern "c" fn wasmer_features_delete(?*Features) void;
+pub extern "c" fn wasmer_features_tail_call(?*Features, bool) bool;
+
 test "detect wasmer lib directory" {
     const result = try detectWasmerLibDir(std.testing.allocator) orelse "";
     defer std.testing.allocator.free(result);

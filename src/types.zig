@@ -556,7 +556,62 @@ pub const WasiEnv = opaque {};
 pub const WasiFilesystem = opaque {};
 
 // Wasmer extension types
-pub const Features = opaque {};
+pub const Features = opaque {
+    /// Create a new features configuration
+    pub fn init() !*Features {
+        return wasmer_features_new() orelse return Error.FeaturesInit;
+    }
+
+    /// Clean up features resources
+    pub fn deinit(self: *Features) void {
+        wasmer_features_delete(self);
+    }
+
+    /// Enable or disable tail call support
+    pub fn tailCall(self: *Features, enable: bool) bool {
+        return wasmer_features_tail_call(self, enable);
+    }
+
+    /// Enable or disable bulk memory operations
+    pub fn bulkMemory(self: *Features, enable: bool) bool {
+        return wasmer_features_bulk_memory(self, enable);
+    }
+
+    /// Enable or disable memory64
+    pub fn memory64(self: *Features, enable: bool) bool {
+        return wasmer_features_memory64(self, enable);
+    }
+
+    /// Enable or disable module linking
+    pub fn moduleLinking(self: *Features, enable: bool) bool {
+        return wasmer_features_module_linking(self, enable);
+    }
+
+    /// Enable or disable multi-memory
+    pub fn multiMemory(self: *Features, enable: bool) bool {
+        return wasmer_features_multi_memory(self, enable);
+    }
+
+    /// Enable or disable multi-value
+    pub fn multiValue(self: *Features, enable: bool) bool {
+        return wasmer_features_multi_value(self, enable);
+    }
+
+    /// Enable or disable reference types
+    pub fn referenceTypes(self: *Features, enable: bool) bool {
+        return wasmer_features_reference_types(self, enable);
+    }
+
+    /// Enable or disable SIMD
+    pub fn simd(self: *Features, enable: bool) bool {
+        return wasmer_features_simd(self, enable);
+    }
+
+    /// Enable or disable threads
+    pub fn threads(self: *Features, enable: bool) bool {
+        return wasmer_features_threads(self, enable);
+    }
+};
 pub const CpuFeatures = opaque {};
 pub const Metering = opaque {};
 pub const Middleware = opaque {};
