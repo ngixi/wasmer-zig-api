@@ -1,20 +1,64 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const types = @import("./types.zig");
 pub const wasm = @import("./wasm.zig");
 pub const wasi = @import("./wasi.zig");
 
-// Re-exports
+// Re-exports from types
+pub const Error = types.Error;
+pub const Config = types.Config;
+pub const Engine = types.Engine;
+pub const Store = types.Store;
+pub const Module = types.Module;
+pub const Instance = types.Instance;
+pub const Func = types.Func;
+pub const Memory = types.Memory;
+pub const Table = types.Table;
+pub const Global = types.Global;
+pub const Trap = types.Trap;
+pub const Extern = types.Extern;
+pub const ExternType = types.ExternType;
+pub const Features = types.Features;
+pub const CpuFeatures = types.CpuFeatures;
+pub const Metering = types.Metering;
+pub const Target = types.Target;
+pub const Triple = types.Triple;
+pub const WasiConfig = wasi.WasiConfig;
+pub const WasiEnv = wasi.WasiEnv;
+pub const WasiFilesystem = types.WasiFilesystem;
+pub const NamedExtern = types.NamedExtern;
+
+// Function type creation helpers
+pub const createFuncType0To0 = types.createFuncType0To0;
+pub const createFuncType1To0 = types.createFuncType1To0;
+pub const createFuncType2To0 = types.createFuncType2To0;
+pub const createFuncType3To0 = types.createFuncType3To0;
+pub const createFuncType4To0 = types.createFuncType4To0;
+pub const createFuncType0To1 = types.createFuncType0To1;
+pub const createFuncType1To1 = types.createFuncType1To1;
+pub const createFuncType2To1 = types.createFuncType2To1;
+pub const createFuncType3To1 = types.createFuncType3To1;
+pub const createI32Valtype = types.createI32Valtype;
+pub const createI64Valtype = types.createI64Valtype;
+pub const createF32Valtype = types.createF32Valtype;
+pub const createF64Valtype = types.createF64Valtype;
+pub const valueFromZigValue = types.valueFromZigValue;
+
+// Type deletion helpers
+pub const wasm_functype_delete = types.wasm_functype_delete;
+pub const wasm_valtype_delete = types.wasm_valtype_delete;
+pub const wasm_module_imports = types.wasm_module_imports;
+pub const getLastError = types.getLastError;
+
+// Re-exports from wasm.zig (keeping for compatibility)
 pub const ExternVec = wasm.ExternVec;
 pub const ByteVec = wasm.ByteVec;
-pub const Engine = wasm.Engine;
-pub const Store = wasm.Store;
-pub const Module = wasm.Module;
-pub const Instance = wasm.Instance;
-pub const Extern = wasm.Extern;
-pub const Func = wasm.Func;
-pub const Memory = wasm.Memory;
+pub const ValVec = wasm.ValVec;
+pub const Value = wasm.Value;
 pub const MemoryType = wasm.MemoryType;
 pub const Limits = wasm.Limits;
+pub const ValtypeVec = types.ValtypeVec;
+pub const ImportTypeVec = types.ImportTypeVec;
 
 const OS_PATH_MAX: usize = switch (builtin.os.tag) {
     .windows => std.os.windows.MAX_PATH,
@@ -69,8 +113,8 @@ pub extern "c" fn wasmer_last_error_length() c_int;
 pub extern "c" fn wasmer_last_error_message([*]const u8, c_int) c_int;
 
 pub fn watToWasm(wat: []const u8) !ByteVec {
-    var wat_bytes = ByteVec.fromSlice(wat);
-    defer wat_bytes.deinit();
+    var wat_bytes = types.byteVecFromSlice(wat);
+    defer wasm_byte_vec_delete(&wat_bytes);
 
     var wasm_bytes: ByteVec = undefined;
     wat2wasm(&wat_bytes, &wasm_bytes);
@@ -81,6 +125,7 @@ pub fn watToWasm(wat: []const u8) !ByteVec {
 }
 
 extern "c" fn wat2wasm(*const wasm.ByteVec, *wasm.ByteVec) void;
+pub extern "c" fn wasm_byte_vec_delete(*wasm.ByteVec) void;
 
 test "detect wasmer lib directory" {
     const result = try detectWasmerLibDir(std.testing.allocator) orelse "";
@@ -104,5 +149,5 @@ test "transform WAT to WASM" {
 
     try std.testing.expectEqual(91, wasm_bytes.size);
 
-    defer wasm_bytes.deinit();
+    defer wasm_byte_vec_delete(&wasm_bytes);
 }
