@@ -186,48 +186,187 @@ pub const Store = opaque {
         wasm_store_delete(self);
     }
 };
-pub const Module = opaque {};
-pub const Instance = opaque {};
-pub const Func = opaque {
-    /// Create a new function from a callback
-    pub fn init(store: *Store, callback: anytype) !*Func {
-        const func = wasm_func_new(store, callback, &Callback{}) orelse return Error.FuncInit;
-        return func;
+pub const Module = opaque {
+    /// Create a module from WASM bytes
+    pub fn init(store: *Store, wasm_bytes: *const ByteVec) !*Module {
+        return wasm_module_new(store, wasm_bytes) orelse return Error.ModuleInit;
     }
 
-    /// Call the function with given parameters and results
-    pub fn call(self: *Func, comptime ResultType: type, params: anytype) !ResultType {
+    /// Validate WASM bytes without creating a module
+    pub fn validate(store: *Store, wasm_bytes: *const ByteVec) bool {
+        return wasm_module_validate(store, wasm_bytes);
+    }
+
+    /// Clean up module resources
+    pub fn deinit(self: *Module) void {
+        wasm_module_delete(self);
+    }
+};
+
+pub const Instance = opaque {
+    /// Create an instance from a module
+    pub fn init(store: *Store, module: *const Module, imports: ?*const ExternVec) !*Instance {
+        var trap: ?*Trap = null;
+        const instance = wasm_instance_new(store, module, imports, &trap) orelse {
+            if (trap) |t| {
+                // TODO: Handle trap properly
+                wasm_trap_delete(t);
+            }
+            return Error.InstanceInit;
+        };
+        return instance;
+    }
+
+    /// Get exports from the instance
+    pub fn getExports(self: *Instance, exports: *ExternVec) void {
+        wasm_instance_exports(self, exports);
+    }
+
+    /// Clean up instance resources
+    pub fn deinit(self: *Instance) void {
+        wasm_instance_delete(self);
+    }
+};
+
+pub const Memory = opaque {
+    /// Create memory from a memory type
+    pub fn init(store: *Store, memory_type: *const MemoryType) !*Memory {
+        return wasm_memory_new(store, memory_type) orelse return Error.MemoryInit;
+    }
+
+    /// Get the memory data as a byte slice
+    pub fn getData(self: *const Memory) []u8 {
+        const size = wasm_memory_data_size(self);
+        const data = wasm_memory_data(self);
+        return data[0..size];
+    }
+
+    /// Grow the memory by the given number of pages
+    pub fn grow(self: *Memory, pages: u32) !void {
+        if (!wasm_memory_grow(self, pages)) return Error.MemoryGrow;
+    }
+
+    /// Get the current size in pages
+    pub fn getSize(self: *const Memory) u32 {
+        return wasm_memory_size(self);
+    }
+
+    /// Clean up memory resources
+    pub fn deinit(self: *Memory) void {
+        wasm_memory_delete(self);
+    }
+};
+
+pub const Table = opaque {
+    /// Create a table from a table type
+    pub fn init(store: *Store, table_type: *const TableType, init_value: ?*anyopaque) !*Table {
+        return wasm_table_new(store, table_type, init_value) orelse return Error.TableInit;
+    }
+
+    /// Get the current table size
+    pub fn getSize(self: *const Table) u32 {
+        return wasm_table_size(self);
+    }
+
+    /// Grow the table by the given number of elements
+    pub fn grow(self: *Table, delta: u32, init_value: ?*anyopaque) u32 {
+        return wasm_table_grow(self, delta, init_value);
+    }
+
+    /// Clean up table resources
+    pub fn deinit(self: *Table) void {
+        wasm_table_delete(self);
+    }
+};
+
+pub const Global = opaque {
+    /// Create a global from a global type and initial value
+    pub fn init(store: *Store, global_type: *const GlobalType, init_value: *const Value) !*Global {
+        return wasm_global_new(store, global_type, init_value) orelse return Error.GlobalInit;
+    }
+
+    /// Clean up global resources
+    pub fn deinit(self: *Global) void {
+        wasm_global_delete(self);
+    }
+};
+
+pub const Trap = opaque {
+    /// Create a trap with a message
+    pub fn init(store: *Store, message: *const ByteVec) !*Trap {
+        return wasm_trap_new(store, message) orelse return Error.TrapInit;
+    }
+
+    /// Clean up trap resources
+    pub fn deinit(self: *Trap) void {
+        wasm_trap_delete(self);
+    }
+};
+
+pub const Func = opaque {
+    /// Create a function from a callback
+    pub fn init(store: *Store, callback: Callback) !*Func {
+        return wasm_func_new(store, callback, null) orelse return Error.FuncInit;
+    }
+
+    /// Create a function with environment from a callback
+    pub fn initWithEnv(store: *Store, callback: CallbackWithEnv, env: *anyopaque, finalizer: ?*anyopaque) !*Func {
+        return wasm_func_new_with_env(store, callback, env, finalizer, null) orelse return Error.FuncInit;
+    }
+
+    /// Call the function with parameters and get results
+    pub fn call(self: *Func, params: []const Value, results: []Value) CallError!void {
         // Validate parameter count
-        const param_count = wasm_func_param_arity(self);
-        const expected_params = @typeInfo(@TypeOf(params)).Struct.fields.len;
-        if (param_count != expected_params) return CallError.InvalidParamCount;
+        const param_arity = wasm_func_param_arity(self);
+        if (params.len != param_arity) {
+            return CallError.InvalidParamCount;
+        }
 
         // Validate result count
-        const result_count = wasm_func_result_arity(self);
-        const expected_results = if (ResultType == void) 0 else 1; // Simplified for now
-        if (result_count != expected_results) return CallError.InvalidResultCount;
-
-        // Prepare parameter vector
-        var param_vec: ValVec = undefined;
-        if (param_count > 0) {
-            // TODO: Implement parameter conversion
+        const result_arity = wasm_func_result_arity(self);
+        if (results.len != result_arity) {
+            return CallError.InvalidResultCount;
         }
 
-        // Prepare result vector
-        var result_vec: ValVec = undefined;
-        if (result_count > 0) {
-            wasm_val_vec_new_uninitialized(&result_vec, result_count);
-        }
+        // Create parameter vector
+        var param_vec = ValVec.fromSlice(params);
+        defer param_vec.deinit();
+
+        // Create result vector
+        var result_vec = ValVec.initCapacity(result_arity);
+        defer result_vec.deinit();
 
         // Call the function
-        const trap = wasm_func_call(self, if (param_count > 0) &param_vec else null, if (result_count > 0) &result_vec else null);
-        if (trap) |_| return CallError.Trap;
+        const trap = wasm_func_call(self, &param_vec, &result_vec);
+        if (trap) |t| {
+            // Handle trap - for now just return error
+            wasm_trap_delete(t);
+            return CallError.Trap;
+        }
 
-        // Convert result back to ResultType - simplified
-        if (ResultType == void) return;
+        // Copy results back
+        const result_slice = result_vec.asSlice();
+        @memcpy(results[0..result_arity], result_slice[0..result_arity]);
+    }
 
-        // TODO: Implement result conversion
-        @panic("Result conversion not implemented");
+    /// Get the number of parameters this function expects
+    pub fn getParamArity(self: *const Func) usize {
+        return wasm_func_param_arity(self);
+    }
+
+    /// Get the number of results this function returns
+    pub fn getResultArity(self: *const Func) usize {
+        return wasm_func_result_arity(self);
+    }
+
+    /// Convert to extern
+    pub fn asExtern(self: *Func) *Extern {
+        return wasm_func_as_extern(self) orelse unreachable;
+    }
+
+    /// Create a copy of the function
+    pub fn copy(self: *const Func) !*Func {
+        return wasm_func_copy(self) orelse return Error.FuncInit;
     }
 
     /// Clean up function resources
@@ -235,10 +374,7 @@ pub const Func = opaque {
         wasm_func_delete(self);
     }
 };
-pub const Memory = opaque {};
-pub const Table = opaque {};
-pub const Global = opaque {};
-pub const Trap = opaque {};
+
 pub const Extern = opaque {};
 pub const ExternType = opaque {};
 
@@ -257,20 +393,119 @@ pub const Triple = opaque {};
 pub const FuncEnv = opaque {};
 pub const NamedExtern = opaque {};
 
-// Vector types
+// Vector types with RAII management
 pub const ByteVec = extern struct {
     size: usize,
     data: [*]u8,
+
+    /// Create an empty ByteVec
+    pub fn init() ByteVec {
+        var vec: ByteVec = undefined;
+        wasm_byte_vec_new(&vec, 0, null);
+        return vec;
+    }
+
+    /// Create a ByteVec from a slice (copies data)
+    pub fn fromSlice(slice: []const u8) ByteVec {
+        var vec: ByteVec = undefined;
+        wasm_byte_vec_new(&vec, slice.len, slice.ptr);
+        return vec;
+    }
+
+    /// Create an uninitialized ByteVec with capacity
+    pub fn initCapacity(capacity: usize) ByteVec {
+        var vec: ByteVec = undefined;
+        wasm_byte_vec_new_uninitialized(&vec, capacity);
+        return vec;
+    }
+
+    /// Get the data as a slice
+    pub fn asSlice(self: *const ByteVec) []u8 {
+        return self.data[0..self.size];
+    }
+
+    /// Get the data as a const slice
+    pub fn asSliceConst(self: *const ByteVec) []const u8 {
+        return self.data[0..self.size];
+    }
+
+    /// Clean up the ByteVec
+    pub fn deinit(self: *ByteVec) void {
+        wasm_byte_vec_delete(self);
+    }
 };
 
 pub const ValVec = extern struct {
     size: usize,
     data: [*]Value,
+
+    /// Create an empty ValVec
+    pub fn init() ValVec {
+        var vec: ValVec = undefined;
+        wasm_val_vec_new(&vec, 0, null);
+        return vec;
+    }
+
+    /// Create a ValVec from a slice of Values (copies data)
+    pub fn fromSlice(values: []const Value) ValVec {
+        var vec: ValVec = undefined;
+        // Need to cast away const for the C API
+        wasm_val_vec_new(&vec, values.len, @constCast(values.ptr));
+        return vec;
+    }
+
+    /// Create an uninitialized ValVec with capacity
+    pub fn initCapacity(capacity: usize) ValVec {
+        var vec: ValVec = undefined;
+        wasm_val_vec_new_uninitialized(&vec, capacity);
+        return vec;
+    }
+
+    /// Get the values as a slice
+    pub fn asSlice(self: *const ValVec) []Value {
+        return self.data[0..self.size];
+    }
+
+    /// Clean up the ValVec
+    pub fn deinit(self: *ValVec) void {
+        wasm_val_vec_delete(self);
+    }
 };
 
 pub const ExternVec = extern struct {
     size: usize,
     data: [*]?*Extern,
+
+    /// Create an empty ExternVec
+    pub fn init() ExternVec {
+        var vec: ExternVec = undefined;
+        wasm_extern_vec_new(&vec, 0, null);
+        return vec;
+    }
+
+    /// Create an ExternVec from a slice of Extern pointers (copies data)
+    pub fn fromSlice(externs: []?*Extern) ExternVec {
+        var vec: ExternVec = undefined;
+        wasm_extern_vec_new(&vec, externs.len, externs.ptr);
+        return vec;
+    }
+
+    /// Create an uninitialized ExternVec with capacity
+    pub fn initCapacity(capacity: usize) ExternVec {
+        var vec: ExternVec = undefined;
+        wasm_extern_vec_new_uninitialized(&vec, capacity);
+        return vec;
+    }
+
+    /// Get the externs as a slice
+    pub fn asSlice(self: *const ExternVec) []?*Extern {
+        return self.data[0..self.size];
+    }
+
+    /// Clean up the ExternVec
+    pub fn deinit(self: *ExternVec) void {
+        wasm_extern_vec_delete(self);
+    }
 };
 
 pub const ExportTypeVec = extern struct {
@@ -638,10 +873,7 @@ pub fn getLastError(allocator: Allocator) ![]u8 {
 
 /// Helper to create a ByteVec from a slice
 pub fn byteVecFromSlice(slice: []const u8) ByteVec {
-    return .{
-        .size = slice.len,
-        .data = @constCast(slice.ptr),
-    };
+    return ByteVec.fromSlice(slice);
 }
 
 /// Helper to create a NameVec from a string
@@ -649,6 +881,29 @@ pub fn nameVecFromString(str: []const u8) NameVec {
     return .{
         .size = str.len,
         .data = str.ptr,
+    };
+}
+
+/// Convert a Zig value to a Wasmer Value
+pub fn valueFromZigValue(value: anytype) Value {
+    const T = @TypeOf(value);
+    return switch (T) {
+        i32 => Value{ .kind = .i32, .of = .{ .i32 = value } },
+        i64 => Value{ .kind = .i64, .of = .{ .i64 = value } },
+        f32 => Value{ .kind = .f32, .of = .{ .f32 = value } },
+        f64 => Value{ .kind = .f64, .of = .{ .f64 = value } },
+        else => @compileError("Unsupported value type: " ++ @typeName(T)),
+    };
+}
+
+/// Convert a Wasmer Value to a Zig value
+pub fn zigValueFromValue(comptime T: type, value: Value) T {
+    return switch (T) {
+        i32 => value.of.i32,
+        i64 => value.of.i64,
+        f32 => value.of.f32,
+        f64 => value.of.f64,
+        else => @compileError("Unsupported result type: " ++ @typeName(T)),
     };
 }
 
