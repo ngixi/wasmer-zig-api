@@ -1,8 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 pub const wasm = @import("./wasm.zig");
-
-pub usingnamespace @import("./wasi.zig");
+pub const wasi = @import("./wasi.zig");
 
 // Re-exports
 pub const ExternVec = wasm.ExternVec;
