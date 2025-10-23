@@ -57,81 +57,137 @@ zig build test
 - [x] Add proper deinit methods
 - [x] Fix ownership semantics
 
-## Phase 2: WASM API Completion (Week 3-4)
+## Phase 2: Complete WASM API Gaps (Week 3-4)
 
 ### 2.1 Module Extensions
 - [x] Implement `wasmer_module_new` wrapper
-- [ ] Add `wasmer_module_name` and `wasmer_module_set_name`
-- [ ] Add module serialization/deserialization
+- [x] Add `wasmer_module_name` and `wasmer_module_set_name`
+- [x] Add module serialization/deserialization
 
-### 2.2 Instance Improvements
+### 2.2 Table and Global Get/Set Methods
+- [x] Implement `Table` type and operations
+- [x] Implement `Global` type and operations
+- [x] Add table/global export/import
+- [x] **COMPLETED**: Add `Table.get()` and `Table.set()` methods
+- [x] **COMPLETED**: Add `Global.get()` and `Global.set()` methods
+
+### 2.3 Instance Improvements
 - [ ] Complete export access methods
 - [ ] Add import validation
 - [ ] Improve error reporting
 
-### 2.3 Table and Global
-- [x] Implement `Table` type and operations
-- [x] Implement `Global` type and operations
-- [x] Add table/global export/import
+## Phase 3: Advanced Features (Week 5-6)
 
-## Phase 3: WASI Completion (Week 5-6)
-
-### 3.1 Filesystem Support
-- [ ] Implement `WasiFilesystem` type
-- [ ] Add `wasi_env_with_filesystem`
-- [ ] Add filesystem utilities
-
-### 3.2 Named Externs
-- [ ] Implement `NamedExtern` and `NamedExternVec`
-- [ ] Add `getUnorderedImports`
-- [ ] Improve import management
-
-### 3.3 WASI Config Extensions
-- [x] Verify all config methods
-- [x] Add missing configuration options
-
-## Phase 4: Advanced Features (Week 7-8)
-
-### 4.1 Features API
+### 3.1 Features API
 - [ ] Implement `Features` type with all flags
 - [ ] Add feature validation
 - [ ] Integrate with Config
 
-### 4.2 CPU Features
+### 3.2 CPU Features
 - [ ] Implement `CpuFeatures` type
 - [ ] Add CPU feature detection
 - [ ] Integrate with Target
 
-### 4.3 Metering
+### 3.3 Metering
 - [ ] Implement `Metering` type
 - [ ] Add middleware integration
 - [ ] Add point management functions
 
-### 4.4 Target/Triple
+### 3.4 Target/Triple
 - [ ] Implement `Triple` type
 - [ ] Implement `Target` type
 - [ ] Add cross-compilation support
 
-## Phase 5: Utilities and Polish (Week 9-10)
+## Phase 4: Backend Utilities (Week 7-8)
 
-### 5.1 Error Handling
+### 4.1 Version and Info Completion
+- [x] Add version functions
+- [x] Add headless detection
+- [ ] Add backend availability checks (`wasmer_is_compiler_available`, `wasmer_is_engine_available`)
+
+### 4.2 Error Handling
 - [ ] Implement `lastError` function
 - [ ] Add comprehensive error messages
 - [ ] Improve error context
 
-### 5.2 WAT Support
+### 4.3 WAT Support
 - [x] Implement `wat2wasm` function
 - [ ] Add WAT parsing utilities
 - [ ] Add round-trip validation
 
-### 5.3 Version and Info
-- [x] Add version functions
-- [x] Add headless detection
-- [ ] Add backend availability checks
-
-### 5.4 Tracing
+### 4.4 Tracing
 - [ ] Implement tracing setup
 - [ ] Add debug utilities
+
+## Phase 5: WASI Completion (Week 9-10)
+
+### 5.1 Filesystem Support
+- [ ] Implement `WasiFilesystem` type
+- [ ] Add `wasi_env_with_filesystem`
+- [ ] Add filesystem utilities
+
+### 5.2 Named Externs
+- [ ] Implement `NamedExtern` and `NamedExternVec`
+- [ ] Add `getUnorderedImports`
+- [ ] Improve import management
+
+### 5.3 WASI Config Extensions
+- [x] Verify all config methods
+- [x] Add missing configuration options
+
+## Phase 6: API Ergonomics (Week 11-12)
+
+### 6.1 Builder Patterns
+- [ ] Config builder
+- [ ] Instance builder
+- [ ] WASI config builder
+
+### 6.2 Convenience Methods
+- [ ] High-level helpers
+- [ ] Common use case functions
+- [ ] Simplified APIs
+
+### 6.3 Generic Improvements
+- [ ] Type-safe function calls
+- [ ] Generic value handling
+- [ ] Compile-time validation
+
+## Phase 7: Testing and Documentation (Week 13-14)
+
+### 7.1 Test Suite
+- [ ] Unit tests for all types
+- [ ] Integration tests
+- [ ] Performance benchmarks
+- [ ] Regression tests
+
+### 7.2 Documentation
+- [ ] API reference docs
+- [ ] Usage examples
+- [ ] Migration guide
+- [ ] Best practices
+
+### 7.3 Examples
+- [ ] Basic WASM loading
+- [ ] WASI applications
+- [ ] Advanced features
+- [ ] Cross-compilation
+
+## Phase 8: Optimization and Finalization (Week 15-16)
+
+### 8.1 Performance
+- [ ] Memory usage optimization
+- [ ] Call overhead reduction
+- [ ] Caching improvements
+
+### 8.2 Safety
+- [ ] Bounds checking
+- [ ] Input validation
+- [ ] Resource leak prevention
+
+### 8.3 Compatibility
+- [ ] Backward compatibility layer
+- [ ] Deprecation warnings
+- [ ] Migration tools
 
 ## Phase 6: API Ergonomics (Week 11-12)
 
@@ -192,7 +248,10 @@ zig build test
 ### Functional Completeness
 - [x] 70-80% C API coverage (core WASM and WASI complete)
 - [x] All major use cases supported
-- [ ] Missing extension API method wrappers (Features, Metering, Target, etc.)
+- [x] **COMPLETED**: Module name operations and serialization (Phase 2.1)
+- [x] **COMPLETED**: Table/Global get/set methods (Phase 2.2)
+- [ ] **MISSING**: Extension API method wrappers (Features, Metering, Target, etc.) (Phase 3)
+- [ ] **MISSING**: Backend availability checks (Phase 4.1)
 
 ### API Quality
 - [ ] Zig-idiomatic interfaces

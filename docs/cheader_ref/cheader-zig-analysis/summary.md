@@ -29,17 +29,12 @@
 ### ⚠️ **Still Missing Method Wrappers**
 - Features API (extern declarations exist)
 - CpuFeatures, Metering, Target, Triple APIs (extern declarations exist)
-- Module name operations (extern declarations exist)
-- Global get/set operations (extern declarations exist)
-- Table get/set operations (extern declarations exist)
 - Some advanced WASI filesystem operations
 - NamedExtern utilities
 
 ### ❌ **Missing Extern Declarations (Completely Inaccessible)**
 - `wasmer_is_compiler_available`
-- `wasmer_is_engine_available` 
-- `wasm_module_serialize`
-- `wasm_module_deserialize`
+- `wasmer_is_engine_available`
 
 ## Recommended Approach
 
@@ -47,16 +42,14 @@
 
 1. **Add Missing Extern Declarations** (Critical)
    - `wasmer_is_compiler_available` and `wasmer_is_engine_available`
-   - `wasm_module_serialize` and `wasm_module_deserialize`
 
 2. **Complete Extension API Method Wrappers** (High Priority)
    - Add method wrappers for Features API (extern declarations exist)
    - Add method wrappers for CpuFeatures, Metering, Target, Triple (extern declarations exist)
 
 3. **Add Missing Core Method Wrappers** (High Priority)
-   - Module.getName/setName methods
-   - Global.getValue/setValue methods
-   - Table.get/set methods
+   - Features API method wrappers (extern declarations exist)
+   - CpuFeatures, Metering, Target, Triple method wrappers (extern declarations exist)
 
 2. **Enhance Error Handling**
    - Implement `wasmer_last_error_*` functions
@@ -70,7 +63,8 @@
 
 ### Already Completed (Contrary to Previous Assessment)
 - ✅ Core WASM API fully implemented with method wrappers
-- ✅ Table and Global operations implemented
+- ✅ Table and Global operations implemented (including get/set methods)
+- ✅ Module operations fully implemented (including name operations and serialization)
 - ✅ Func.call implementation fixed
 - ✅ WASI Config and Env fully implemented
 - ✅ Vector types with RAII patterns

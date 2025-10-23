@@ -18,6 +18,10 @@ pub const Error = error{
     StoreInit,
     /// Module initialization/compilation failed
     ModuleInit,
+    /// Module set name operation failed
+    ModuleSetName,
+    /// Module deserialization failed
+    ModuleDeserialize,
     /// Function initialization failed
     FuncInit,
     /// Instance initialization failed
@@ -26,6 +30,8 @@ pub const Error = error{
     MemoryInit,
     /// Table initialization failed
     TableInit,
+    /// Table set operation failed
+    TableSet,
     /// Global initialization failed
     GlobalInit,
     /// WASI configuration initialization failed
@@ -197,6 +203,40 @@ pub const Module = opaque {
         return wasm_module_validate(store, wasm_bytes);
     }
 
+    /// Get the name of the module
+    pub fn getName(self: *const Module, allocator: Allocator) ![]u8 {
+        var name_vec = NameVec{
+            .size = 0,
+            .data = undefined,
+        };
+        wasmer_module_name(self, &name_vec);
+
+        if (name_vec.size == 0) return error.NoName;
+
+        const name_slice = name_vec.data[0..name_vec.size];
+        return try allocator.dupe(u8, name_slice);
+    }
+
+    /// Set the name of the module
+    pub fn setName(self: *Module, name: []const u8) !void {
+        const name_vec = nameVecFromString(name);
+        if (!wasmer_module_set_name(self, &name_vec)) {
+            return Error.ModuleSetName;
+        }
+    }
+
+    /// Serialize the module to bytes
+    pub fn serialize(self: *const Module) ByteVec {
+        var byte_vec = ByteVec.init();
+        wasm_module_serialize(self, &byte_vec);
+        return byte_vec;
+    }
+
+    /// Deserialize a module from bytes
+    pub fn deserialize(store: *Store, bytes: *const ByteVec) !*Module {
+        return wasm_module_deserialize(store, bytes) orelse return Error.ModuleDeserialize;
+    }
+
     /// Clean up module resources
     pub fn deinit(self: *Module) void {
         wasm_module_delete(self);
@@ -273,6 +313,18 @@ pub const Table = opaque {
         return wasm_table_grow(self, delta, init_value);
     }
 
+    /// Get the value at the specified index
+    pub fn get(self: *const Table, index: u32) ?*anyopaque {
+        return wasm_table_get(self, index);
+    }
+
+    /// Set the value at the specified index
+    pub fn set(self: *Table, index: u32, value: ?*anyopaque) !void {
+        if (!wasm_table_set(self, index, value)) {
+            return Error.TableSet;
+        }
+    }
+
     /// Clean up table resources
     pub fn deinit(self: *Table) void {
         wasm_table_delete(self);
@@ -283,6 +335,18 @@ pub const Global = opaque {
     /// Create a global from a global type and initial value
     pub fn init(store: *Store, global_type: *const GlobalType, init_value: *const Value) !*Global {
         return wasm_global_new(store, global_type, init_value) orelse return Error.GlobalInit;
+    }
+
+    /// Get the current value of the global
+    pub fn get(self: *const Global) Value {
+        var value: Value = undefined;
+        wasm_global_get(self, &value);
+        return value;
+    }
+
+    /// Set a new value for the global
+    pub fn set(self: *Global, value: *const Value) void {
+        wasm_global_set(self, value);
     }
 
     /// Clean up global resources
@@ -606,6 +670,8 @@ extern "c" fn wasm_module_exports(?*const Module, ?*ExportTypeVec) void;
 extern "c" fn wasm_module_imports(?*const Module, ?*ImportTypeVec) void;
 extern "c" fn wasm_module_share(?*const Module) ?*Module;
 extern "c" fn wasm_module_obtain(?*Store, ?*const Module) ?*Module;
+extern "c" fn wasm_module_serialize(?*const Module, ?*ByteVec) void;
+extern "c" fn wasm_module_deserialize(?*Store, ?*const ByteVec) ?*Module;
 extern "c" fn wasmer_module_name(?*const Module, ?*NameVec) void;
 extern "c" fn wasmer_module_set_name(?*Module, ?*const NameVec) bool;
 
